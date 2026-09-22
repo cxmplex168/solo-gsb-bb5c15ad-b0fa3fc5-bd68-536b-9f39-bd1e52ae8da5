@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webhook 事件回放沙箱</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>⚡ Webhook 事件回放沙箱</h1>
+  <span id="conn-status" class="badge muted">连接中…</span>
+</header>
+
+<main>
+  <!-- 1. 创建会话 -->
+  <section class="card" id="create-card">
+    <h2><span class="step">1</span> 创建回放会话</h2>
+    <div class="grid-2">
+      <label>会话名称 <input id="f-name" value="demo-replay"></label>
+      <label>共享密钥（HMAC） <input id="f-secret" value="whsec_demo_secret"></label>
+      <label class="span-2">目标接收地址 <input id="f-target"></label>
+      <label>时间流速（虚拟秒/真实秒）
+        <select id="f-speed">
+          <option value="1">1×（实时）</option>
+          <option value="10">10×</option>
+          <option value="60" selected>60×</option>
+          <option value="600">600×</option>
+          <option value="3600">3600×</option>
+        </select>
+      </label>
+      <label>最大自动重试次数 <input id="f-max-retries" type="number" value="3" min="0" max="10"></label>
+      <label>重试基础间隔（秒，指数退避） <input id="f-base-delay" type="number" value="1" min="0" max="60" step="0.5"></label>
+    </div>
+    <label class="block">事件列表（JSON 数组，每个事件需含 <code>timestamp</code>/<code>ts</code>/<code>time</code> 字段，支持 epoch 秒或 ISO 8601）
+      <textarea id="f-events" rows="10" spellcheck="false"></textarea>
+    </label>
+    <div class="btn-row">
+      <button id="btn-sample" class="secondary">载入示例事件</button>
+      <button id="btn-create" class="primary">创建会话</button>
+      <span id="create-msg" class="msg"></span>
+    </div>
+  </section>
+
+  <!-- 2. 回放控制 -->
+  <section class="card" id="control-card" hidden>
+    <h2><span class="step">2</span> 回放控制
+      <select id="session-select" title="切换会话"></select>
+    </h2>
+    <div class="status-line">
+      <span>状态：<b id="s-status" class="badge">-</b></span>
+      <span>进度：<b id="s-progress">-</b></span>
+      <div class="progress"><div id="s-progress-bar"></div></div>
+    </div>
+    <div class="btn-row">
+      <button id="btn-start" class="primary">▶ 开始</button>
+      <button id="btn-pause" class="secondary">⏸ 暂停</button>
+      <button id="btn-resume" class="secondary">⏵ 继续</button>
+      <button id="btn-step" class="secondary">⏭ 单步</button>
+      <button id="btn-reset" class="secondary">↺ 重置</button>
+      <button id="btn-export-json" class="secondary">导出 JSON</button>
+      <button id="btn-export-csv" class="secondary">导出 CSV</button>
+      <button id="btn-delete" class="danger">删除会话</button>
+      <span id="ctl-msg" class="msg"></span>
+    </div>
+  </section>
+
+  <!-- 3. 投递记录 -->
+  <section class="card" id="events-card" hidden>
+    <h2><span class="step">3</span> 投递记录（按虚拟时间轴排序）</h2>
+    <table id="events-table">
+      <thead>
+        <tr>
+          <th>#</th><th>事件时间</th><th>状态</th><th>尝试</th>
+          <th>响应码</th><th>最近签名</th><th>错误</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="events-tbody"></tbody>
+    </table>
+  </section>
+
+  <!-- 4. 本地接收端 -->
+  <section class="card">
+    <h2><span class="step">4</span> 本地接收端 <code id="receiver-url" class="mono"></code></h2>
+    <div class="grid-2">
+      <label>行为模式
+        <select id="r-mode">
+          <option value="ok">正常（200）</option>
+          <option value="fail">总是失败</option>
+          <option value="flaky">随机失败</option>
+          <option value="slow">慢响应（仍 200）</option>
+        </select>
+      </label>
+      <label>失败状态码 <input id="r-fail-code" type="number" value="500"></label>
+      <label>随机失败率（0~1） <input id="r-fail-rate" type="number" value="0.5" min="0" max="1" step="0.1"></label>
+      <label>响应延迟（毫秒） <input id="r-latency" type="number" value="0" min="0"></label>
+      <label class="span-2">验签密钥（留空则不校验） <input id="r-secret" placeholder="与会话共享密钥一致时显示 ✓"></label>
+    </div>
+    <div class="btn-row">
+      <button id="btn-save-receiver" class="primary">保存接收端配置</button>
+      <button id="btn-clear-log" class="secondary">清空接收日志</button>
+      <span id="receiver-msg" class="msg"></span>
+    </div>
+    <table id="receiver-table">
+      <thead><tr><th>时间</th><th>事件 ID</th><th>尝试</th><th>验签</th><th>报文</th></tr></thead>
+      <tbody id="receiver-tbody"></tbody>
+    </table>
+  </section>
+</main>
+
+<footer>签名算法：<code>sha256=<span class="mono">HMAC_SHA256(secret, "{timestamp}.{body}")</span></code>，请求头 <code>X-Webhook-Signature / X-Webhook-Timestamp</code></footer>
+<script src="/app.js"></script>
+</body>
+</html>

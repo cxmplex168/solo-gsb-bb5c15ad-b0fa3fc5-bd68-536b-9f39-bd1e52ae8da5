@@ -1,0 +1,12 @@
+services:
+  webhook-replay:
+    build: .
+    container_name: webhook-replay-sandbox
+    ports:
+      - "8000:8000"
+    volumes:
+      - replay-data:/data
+    restart: unless-stopped
+
+volumes:
+  replay-data:
