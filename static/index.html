@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webhook 事件回放沙箱</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪝</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🪝 Webhook 事件回放沙箱</div>
+    <nav class="tabs">
+      <button class="tab active" data-view="new">新建回放</button>
+      <button class="tab" data-view="sessions">回放会话</button>
+      <button class="tab" data-view="receivers">本地接收端</button>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- ===================== 新建回放 ===================== -->
+    <section id="view-new" class="view active">
+      <div class="grid two">
+        <div class="card">
+          <h2>① 粘贴事件</h2>
+          <p class="hint">支持 JSON 数组、JSON Lines 或单个对象；每个事件需含 <code>timestamp</code>/<code>ts</code>/<code>time</code>/<code>date</code> 字段。</p>
+          <textarea id="eventsText" spellcheck="false" placeholder='[&#10;  {"id": "e1", "type": "order.created", "timestamp": "2026-09-22T10:00:00Z", ...},&#10;  {"id": "e2", "type": "order.paid",    "timestamp": "2026-09-22T10:00:05Z", ...}&#10;]'></textarea>
+          <div class="row">
+            <button class="btn ghost" id="btnExample">填入示例</button>
+            <button class="btn" id="btnPreview">解析预览</button>
+          </div>
+          <div id="preview" class="preview hidden"></div>
+        </div>
+
+        <div class="card">
+          <h2>② 投递配置</h2>
+          <label>会话名称
+            <input id="fName" type="text" placeholder="可选，留空自动生成" />
+          </label>
+          <label>接收端 URL（目标）
+            <input id="fTarget" type="text" placeholder="http://catch/catch/xxxx 或任意本地地址" list="targetList" />
+            <datalist id="targetList"></datalist>
+          </label>
+          <label>共享密钥（HMAC Secret）
+            <input id="fSecret" type="text" placeholder="如 whsec_test_123" />
+          </label>
+          <div class="grid two gap">
+            <label>签名算法
+              <select id="fScheme">
+                <option value="hmac-sha256">HMAC-SHA256（默认）</option>
+                <option value="hmac-sha1">HMAC-SHA1</option>
+                <option value="hmac-sha512">HMAC-SHA512</option>
+                <option value="none">不签名</option>
+              </select>
+            </label>
+            <label>请求头前缀
+              <input id="fPrefix" type="text" value="X-Webhook" />
+            </label>
+          </div>
+          <div class="grid three gap">
+            <label>回放速度
+              <input id="fSpeed" type="number" value="1" min="0.1" max="1000" step="0.1" />
+            </label>
+            <label>最大重试
+              <input id="fRetryMax" type="number" value="3" min="0" max="20" step="1" />
+            </label>
+            <label>失败策略
+              <select id="fOnFailure">
+                <option value="continue">继续后续事件</option>
+                <option value="abort">中止整个回放</option>
+              </select>
+            </label>
+          </div>
+          <div class="grid two gap">
+            <label>首次重试间隔 (ms)
+              <input id="fRetryBase" type="number" value="1000" min="0" step="100" />
+            </label>
+            <label>退避倍数
+              <input id="fRetryFactor" type="number" value="2" min="1" max="10" step="0.5" />
+            </label>
+          </div>
+          <p class="hint">第 n 次重试等待 = 基础间隔 × 倍数<sup>n-2</sup>，例如 1000ms → 2000ms → 4000ms。</p>
+          <label class="check"><input id="fAutostart" type="checkbox" checked /> 创建后立即开始回放</label>
+          <button class="btn primary big" id="btnCreate">创建并回放</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 会话列表 ===================== -->
+    <section id="view-sessions" class="view">
+      <div class="card">
+        <div class="card-head">
+          <h2>回放会话</h2>
+          <button class="btn ghost small" id="btnRefreshSessions">刷新</button>
+        </div>
+        <div id="sessionList" class="list"></div>
+      </div>
+    </section>
+
+    <!-- ===================== 会话详情 ===================== -->
+    <section id="view-detail" class="view">
+      <div class="card">
+        <div class="card-head">
+          <button class="btn ghost small" id="btnBack">← 返回列表</button>
+          <h2 id="detailTitle">会话</h2>
+          <span id="detailStatus" class="chip"></span>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn" id="btnStart">▶ 启动</button>
+          <button class="btn" id="btnPause">⏸ 暂停</button>
+          <button class="btn" id="btnStep">⏭ 单步</button>
+          <button class="btn" id="btnResume">⏵ 继续</button>
+          <button class="btn danger" id="btnStop">⏹ 停止</button>
+          <span class="spacer"></span>
+          <label class="inline">速度
+            <input id="dSpeed" type="number" min="0.1" max="1000" step="0.1" />
+          </label>
+          <a class="btn ghost small" id="btnExportJson" download>导出 JSON</a>
+          <a class="btn ghost small" id="btnExportCsv" download>导出 CSV</a>
+          <button class="btn danger ghost small" id="btnDelete">删除</button>
+        </div>
+
+        <div id="detailMeta" class="meta"></div>
+        <div id="timeline" class="timeline"></div>
+      </div>
+    </section>
+
+    <!-- ===================== 接收端 ===================== -->
+    <section id="view-receivers" class="view">
+      <div class="card">
+        <h2>本地接收端（Catch Box）</h2>
+        <p class="hint">内置接收器，接收 POST 并完整记录请求头与报文。可配置周期性失败以测试重试。</p>
+        <div class="grid three gap">
+          <label>名称 <input id="bName" type="text" value="my-receiver" /></label>
+          <label>失败状态码（0=永不失败）<input id="bFailStatus" type="number" value="500" min="0" max="599" /></label>
+          <label>每 N 次请求失败（0=关 / 1=每次）<input id="bFailEvery" type="number" value="0" min="0" /></label>
+        </div>
+        <button class="btn primary" id="btnCreateBox">创建接收端</button>
+        <div id="boxList" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 收到的请求弹窗 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-body">
+      <div class="card-head">
+        <h2 id="modalTitle">捕获的请求</h2>
+        <button class="btn ghost small" id="modalClose">关闭</button>
+      </div>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
